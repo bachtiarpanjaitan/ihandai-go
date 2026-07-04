@@ -7,7 +7,7 @@ package loader
 import (
 	"context"
 
-	"github.com/bachtiarpanjaitan/ihandai-go"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 )
 
 // DocumentLoader loads documents from a source.
@@ -17,5 +17,5 @@ import (
 type DocumentLoader interface {
 	// Load fetches documents from the given source.
 	// The context controls cancellation and carries tracing spans.
-	Load(ctx context.Context, source string) ([]ihandai.Document, error)
+	Load(ctx context.Context, source string) ([]core.Document, error)
 }

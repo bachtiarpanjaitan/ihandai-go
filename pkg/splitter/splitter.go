@@ -7,7 +7,7 @@ package splitter
 import (
 	"context"
 
-	"github.com/bachtiarpanjaitan/ihandai-go"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 )
 
 // TextSplitter splits documents into smaller chunks.
@@ -17,7 +17,7 @@ import (
 type TextSplitter interface {
 	// Split divides documents into chunks suitable for embedding and retrieval.
 	// The context controls cancellation and carries tracing spans.
-	Split(ctx context.Context, documents []ihandai.Document) ([]ihandai.Chunk, error)
+	Split(ctx context.Context, documents []core.Document) ([]core.Chunk, error)
 }
 
 // Config holds configuration for a text splitter.

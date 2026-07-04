@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bachtiarpanjaitan/ihandai-go"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 )
 
 // Compile-time interface satisfaction check
@@ -14,10 +14,10 @@ var _ Reranker = (*failingReranker)(nil)
 
 type mockReranker struct{}
 
-func (m mockReranker) Rerank(ctx context.Context, query string, docs []ihandai.Document) ([]ihandai.ScoredDocument, error) {
-	result := make([]ihandai.ScoredDocument, len(docs))
+func (m mockReranker) Rerank(ctx context.Context, query string, docs []core.Document) ([]core.ScoredDocument, error) {
+	result := make([]core.ScoredDocument, len(docs))
 	for i, doc := range docs {
-		result[i] = ihandai.ScoredDocument{
+		result[i] = core.ScoredDocument{
 			Document: doc,
 			Score:    1.0 - float64(i)*0.1, // decreasing scores
 		}
@@ -27,13 +27,13 @@ func (m mockReranker) Rerank(ctx context.Context, query string, docs []ihandai.D
 
 type failingReranker struct{}
 
-func (f failingReranker) Rerank(ctx context.Context, query string, docs []ihandai.Document) ([]ihandai.ScoredDocument, error) {
+func (f failingReranker) Rerank(ctx context.Context, query string, docs []core.Document) ([]core.ScoredDocument, error) {
 	return nil, errors.New("rerank failed")
 }
 
 func TestReranker_Mock(t *testing.T) {
 	var r Reranker = mockReranker{}
-	docs := []ihandai.Document{
+	docs := []core.Document{
 		{ID: "1", Content: "first"},
 		{ID: "2", Content: "second"},
 	}

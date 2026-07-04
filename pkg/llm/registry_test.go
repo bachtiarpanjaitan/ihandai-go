@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/bachtiarpanjaitan/ihandai-go"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 )
 
 func TestRegister(t *testing.T) {
@@ -65,7 +65,7 @@ func TestOpen_Valid(t *testing.T) {
 	}
 
 	// Verify it works
-	resp, err := c.Chat(context.Background(), []ihandai.Message{{Role: "user", Content: "test"}})
+	resp, err := c.Chat(context.Background(), []core.Message{{Role: "user", Content: "test"}})
 	if err != nil {
 		t.Fatalf("Chat failed: %v", err)
 	}

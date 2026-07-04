@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bachtiarpanjaitan/ihandai-go"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 )
 
 // Compile-time interface satisfaction check
@@ -14,15 +14,15 @@ var _ DocumentLoader = (*failingLoader)(nil)
 
 type mockLoader struct{}
 
-func (m mockLoader) Load(ctx context.Context, source string) ([]ihandai.Document, error) {
-	return []ihandai.Document{
+func (m mockLoader) Load(ctx context.Context, source string) ([]core.Document, error) {
+	return []core.Document{
 		{ID: "1", Content: "loaded from " + source},
 	}, nil
 }
 
 type failingLoader struct{}
 
-func (f failingLoader) Load(ctx context.Context, source string) ([]ihandai.Document, error) {
+func (f failingLoader) Load(ctx context.Context, source string) ([]core.Document, error) {
 	return nil, errors.New("load failed")
 }
 

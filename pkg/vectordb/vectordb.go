@@ -10,14 +10,14 @@ package vectordb
 import (
 	"context"
 
-	"github.com/bachtiarpanjaitan/ihandai-go"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 )
 
 // VectorSearcher performs similarity search over stored vectors.
 type VectorSearcher interface {
 	// Search finds documents whose vectors are most similar to the query vector.
 	// Options control the number of results, filters, and search strategy.
-	Search(ctx context.Context, vector []float64, opts ...SearchOption) ([]ihandai.ScoredDocument, error)
+	Search(ctx context.Context, vector []float64, opts ...SearchOption) ([]core.ScoredDocument, error)
 }
 
 // VectorInserter stores documents with their vectors for later retrieval.
@@ -25,7 +25,7 @@ type VectorInserter interface {
 	// Insert stores documents and their vectors.
 	// Documents must have embeddings pre-computed (stored in metadata or a
 	// provider-specific field).
-	Insert(ctx context.Context, documents []ihandai.Document) error
+	Insert(ctx context.Context, documents []core.Document) error
 }
 
 // VectorDeleter removes documents from the vector store.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/bachtiarpanjaitan/ihandai-go"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 )
 
 // Compile-time interface satisfaction check
@@ -12,10 +12,10 @@ var _ TextSplitter = (*mockSplitter)(nil)
 
 type mockSplitter struct{}
 
-func (m mockSplitter) Split(ctx context.Context, docs []ihandai.Document) ([]ihandai.Chunk, error) {
-	var chunks []ihandai.Chunk
+func (m mockSplitter) Split(ctx context.Context, docs []core.Document) ([]core.Chunk, error) {
+	var chunks []core.Chunk
 	for _, doc := range docs {
-		chunks = append(chunks, ihandai.Chunk{
+		chunks = append(chunks, core.Chunk{
 			ID:       doc.ID + "-chunk-0",
 			Content:  doc.Content,
 			ParentID: doc.ID,
@@ -26,7 +26,7 @@ func (m mockSplitter) Split(ctx context.Context, docs []ihandai.Document) ([]iha
 
 func TestTextSplitter_Mock(t *testing.T) {
 	var s TextSplitter = mockSplitter{}
-	docs := []ihandai.Document{
+	docs := []core.Document{
 		{ID: "1", Content: "hello world"},
 		{ID: "2", Content: "foo bar"},
 	}

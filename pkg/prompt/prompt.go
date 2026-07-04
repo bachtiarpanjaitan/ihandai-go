@@ -8,7 +8,7 @@ package prompt
 import (
 	"context"
 
-	"github.com/bachtiarpanjaitan/ihandai-go"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 )
 
 // PromptBuilder builds chat messages from templates and context data.
@@ -23,5 +23,5 @@ type PromptBuilder interface {
 	// Jinja2, or plain text with placeholders).
 	// The contextData contains values like retrieved documents, user query,
 	// conversation history, and system instructions.
-	Build(ctx context.Context, template string, contextData map[string]any) ([]ihandai.Message, error)
+	Build(ctx context.Context, template string, contextData map[string]any) ([]core.Message, error)
 }

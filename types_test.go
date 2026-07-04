@@ -136,7 +136,7 @@ func TestScoredDocument(t *testing.T) {
 func TestJSONSchema(t *testing.T) {
 	schema := JSONSchema{
 		Type: "object",
-		Properties: map[string]*JSONSchemaProperty{
+		Properties: map[string]*JSONSchemaProp{
 			"name": {
 				Type:        "string",
 				Description: "The name of the person",

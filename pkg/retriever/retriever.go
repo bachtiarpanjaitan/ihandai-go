@@ -8,7 +8,7 @@ package retriever
 import (
 	"context"
 
-	"github.com/bachtiarpanjaitan/ihandai-go"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 )
 
 // Retriever retrieves relevant documents for a query vector.
@@ -19,7 +19,7 @@ import (
 type Retriever interface {
 	// Retrieve finds documents relevant to the given query vector.
 	// The context controls cancellation and carries tracing spans.
-	Retrieve(ctx context.Context, query []float64, opts ...RetrieveOption) ([]ihandai.ScoredDocument, error)
+	Retrieve(ctx context.Context, query []float64, opts ...RetrieveOption) ([]core.ScoredDocument, error)
 }
 
 // RetrieveOption is a functional option for retrieval operations.

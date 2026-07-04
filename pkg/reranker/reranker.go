@@ -8,7 +8,7 @@ package reranker
 import (
 	"context"
 
-	"github.com/bachtiarpanjaitan/ihandai-go"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 )
 
 // Reranker re-ranks a set of candidate documents against a query.
@@ -19,5 +19,5 @@ import (
 type Reranker interface {
 	// Rerank scores and re-orders documents by relevance to the query.
 	// The context controls cancellation and carries tracing spans.
-	Rerank(ctx context.Context, query string, documents []ihandai.Document) ([]ihandai.ScoredDocument, error)
+	Rerank(ctx context.Context, query string, documents []core.Document) ([]core.ScoredDocument, error)
 }

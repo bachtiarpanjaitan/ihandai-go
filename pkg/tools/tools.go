@@ -11,7 +11,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/bachtiarpanjaitan/ihandai-go"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 )
 
 // Tool is a function that an LLM can request to call.
@@ -28,7 +28,7 @@ type Tool interface {
 	Description() string
 
 	// InputSchema returns the JSON Schema describing the tool's input parameters.
-	InputSchema() *ihandai.JSONSchema
+	InputSchema() *core.JSONSchema
 
 	// Execute runs the tool with the given input and returns the result.
 	// The input is the JSON-encoded arguments from the LLM.

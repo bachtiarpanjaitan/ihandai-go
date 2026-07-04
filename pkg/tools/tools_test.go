@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/bachtiarpanjaitan/ihandai-go"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 )
 
 // Compile-time interface satisfaction check
@@ -15,7 +15,7 @@ type mockTool struct{}
 
 func (m mockTool) Name() string                   { return "mock_tool" }
 func (m mockTool) Description() string             { return "A mock tool for testing" }
-func (m mockTool) InputSchema() *ihandai.JSONSchema { return &ihandai.JSONSchema{Type: "object"} }
+func (m mockTool) InputSchema() *core.JSONSchema { return &core.JSONSchema{Type: "object"} }
 func (m mockTool) Execute(ctx context.Context, input json.RawMessage) (json.RawMessage, error) {
 	return json.RawMessage(`{"status":"ok"}`), nil
 }

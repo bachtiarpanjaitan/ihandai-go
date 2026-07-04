@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/bachtiarpanjaitan/ihandai-go"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 )
 
 // Compile-time interface satisfaction check
@@ -12,9 +12,9 @@ var _ Retriever = (*mockRetriever)(nil)
 
 type mockRetriever struct{}
 
-func (m mockRetriever) Retrieve(ctx context.Context, query []float64, opts ...RetrieveOption) ([]ihandai.ScoredDocument, error) {
-	return []ihandai.ScoredDocument{
-		{Document: ihandai.Document{ID: "1", Content: "result"}, Score: 0.99},
+func (m mockRetriever) Retrieve(ctx context.Context, query []float64, opts ...RetrieveOption) ([]core.ScoredDocument, error) {
+	return []core.ScoredDocument{
+		{Document: core.Document{ID: "1", Content: "result"}, Score: 0.99},
 	}, nil
 }
 
