@@ -10,6 +10,7 @@ import (
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/embedding"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/llm"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/memory"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/retriever"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/vectordb"
 )
@@ -431,4 +432,69 @@ type mockLoader struct {
 
 func (m *mockLoader) Load(ctx context.Context, source string) ([]core.Document, error) {
 	return m.docs, nil
+}
+
+func TestAskConversation(t *testing.T) {
+	store := memory.NewInMemoryStore()
+	key := "test-session"
+
+	ai, _ := New(
+		WithLLM("mock"),
+		WithEmbedding("mock"),
+		WithVectorStore("mock"),
+		WithMemory(store),
+	)
+	defer ai.Close()
+
+	// First message
+	resp, err := ai.AskConversation(context.Background(), key, "hello")
+	if err != nil {
+		t.Fatalf("AskConversation failed: %v", err)
+	}
+	if resp.Content == "" {
+		t.Error("expected non-empty response")
+	}
+
+	// Verify history was saved
+	history, _ := store.History(context.Background(), key)
+	if len(history) < 2 {
+		t.Errorf("expected at least 2 messages in history (query + response), got %d", len(history))
+	}
+
+	// Second message should include history
+	resp2, err := ai.AskConversation(context.Background(), key, "follow up")
+	if err != nil {
+		t.Fatalf("second AskConversation failed: %v", err)
+	}
+	if resp2.Content == "" {
+		t.Error("expected non-empty response")
+	}
+}
+
+func TestAskConversation_NoMemory(t *testing.T) {
+	ai, _ := New(
+		WithLLM("mock"),
+		WithEmbedding("mock"),
+		WithVectorStore("mock"),
+	)
+	defer ai.Close()
+
+	// Should fall back to stateless Ask
+	resp, err := ai.AskConversation(context.Background(), "key", "query")
+	if err != nil {
+		t.Fatalf("AskConversation without memory should fallback to Ask: %v", err)
+	}
+	if resp.Content == "" {
+		t.Error("expected non-empty response")
+	}
+}
+
+func TestWithMemory(t *testing.T) {
+	store := memory.NewInMemoryStore()
+	ai, _ := New(WithMemory(store))
+	defer ai.Close()
+
+	if ai.Memory() != store {
+		t.Error("Memory() should return the configured store")
+	}
 }
