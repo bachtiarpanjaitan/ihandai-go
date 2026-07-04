@@ -11,7 +11,7 @@ package llm
 import (
 	"context"
 
-	"github.com/bachtiarpanjaitan/ihandai-go"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 )
 
 // ChatCompleter is the core LLM interface for synchronous chat completion.
@@ -19,7 +19,7 @@ import (
 type ChatCompleter interface {
 	// Chat sends messages to the LLM and returns the generated response.
 	// The context controls cancellation, timeouts, and carries tracing spans.
-	Chat(ctx context.Context, messages []ihandai.Message) (*ihandai.Response, error)
+	Chat(ctx context.Context, messages []core.Message) (*core.Response, error)
 }
 
 // StreamCompleter provides streaming chat completion.
@@ -29,7 +29,7 @@ type StreamCompleter interface {
 	// ChatStream sends messages and returns a channel of response chunks.
 	// The channel is closed when generation is complete.
 	// The caller must read from the channel until it closes.
-	ChatStream(ctx context.Context, messages []ihandai.Message) (<-chan Chunk, error)
+	ChatStream(ctx context.Context, messages []core.Message) (<-chan Chunk, error)
 }
 
 // TokenCounter estimates token usage for a given text and model.

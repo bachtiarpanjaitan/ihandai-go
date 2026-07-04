@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bachtiarpanjaitan/ihandai-go"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 )
 
 // Compile-time interface satisfaction check
@@ -14,8 +14,8 @@ var _ PromptBuilder = (*failingBuilder)(nil)
 
 type mockBuilder struct{}
 
-func (m mockBuilder) Build(ctx context.Context, template string, contextData map[string]any) ([]ihandai.Message, error) {
-	return []ihandai.Message{
+func (m mockBuilder) Build(ctx context.Context, template string, contextData map[string]any) ([]core.Message, error) {
+	return []core.Message{
 		{Role: "system", Content: template},
 		{Role: "user", Content: contextData["query"].(string)},
 	}, nil
@@ -23,7 +23,7 @@ func (m mockBuilder) Build(ctx context.Context, template string, contextData map
 
 type failingBuilder struct{}
 
-func (f failingBuilder) Build(ctx context.Context, template string, contextData map[string]any) ([]ihandai.Message, error) {
+func (f failingBuilder) Build(ctx context.Context, template string, contextData map[string]any) ([]core.Message, error) {
 	return nil, errors.New("build failed")
 }
 

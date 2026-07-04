@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bachtiarpanjaitan/ihandai-go"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 )
 
 // Compile-time interface satisfaction check
@@ -15,16 +15,16 @@ var _ TokenCounter = (*mockCounter)(nil)
 
 type mockChat struct{}
 
-func (m mockChat) Chat(ctx context.Context, msgs []ihandai.Message) (*ihandai.Response, error) {
+func (m mockChat) Chat(ctx context.Context, msgs []core.Message) (*core.Response, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return &ihandai.Response{Content: "mock"}, nil
+	return &core.Response{Content: "mock"}, nil
 }
 
 type mockStream struct{}
 
-func (m mockStream) ChatStream(ctx context.Context, msgs []ihandai.Message) (<-chan Chunk, error) {
+func (m mockStream) ChatStream(ctx context.Context, msgs []core.Message) (<-chan Chunk, error) {
 	ch := make(chan Chunk)
 	close(ch)
 	return ch, nil
@@ -38,7 +38,7 @@ func (m mockCounter) CountTokens(ctx context.Context, model, text string) (int, 
 
 func TestChatCompleter_Mock(t *testing.T) {
 	var c ChatCompleter = mockChat{}
-	resp, err := c.Chat(context.Background(), []ihandai.Message{{Role: "user", Content: "hello"}})
+	resp, err := c.Chat(context.Background(), []core.Message{{Role: "user", Content: "hello"}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

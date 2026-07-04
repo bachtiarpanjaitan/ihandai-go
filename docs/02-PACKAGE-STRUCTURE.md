@@ -25,6 +25,8 @@ machinery for provider registration. Users only import sub-packages for **advanc
 
 ```
 pkg/
+├── core/          Message, Response, Document, Chunk, ScoredDocument,
+│                  JSONSchema, ToolCall, TokenUsage (shared types)
 ├── llm/           ChatCompleter, StreamCompleter, TokenCounter interfaces
 │                  Registry: llm.Register(), llm.Open()
 │
@@ -49,28 +51,31 @@ pkg/
 
 ## What Changed
 
-- **Removed `core/`** — was undefined. Its role is now served by the root package.
+- **Added `core/`** — shared types needed by both root and sub-packages, avoiding import cycles.
+- **Removed old `core/`** — was undefined; now has a concrete purpose.
 - **Removed `rag/`** — RAG is a pipeline, not a package. Orchestrated by `Client`.
 - **Added `prompt/`** — PromptBuilder was referenced in architecture but had no package.
 - **Added `telemetry/`** — structured logging, OpenTelemetry tracing, metrics.
 
-## Plugins (Separate Repository)
+## Plugins (`plugins/`)
 
-Plugins are separate Go modules that import the core library and register providers:
+Reference provider implementations live in the `plugins/` directory:
 
 ```
-github.com/bachtiarpanjaitan/ihandai-go-plugins/
-├── openai/       OpenAI LLM + Embedding
-├── ollama/       Ollama LLM + Embedding (local)
-├── gemini/       Google Gemini LLM
-├── claude/       Anthropic Claude LLM
-├── qdrant/       Qdrant vector database
-├── pgvector/     PostgreSQL pgvector
-├── milvus/       Milvus vector database
-└── ...
+plugins/
+└── ollama/        Ollama LLM + Embedding (local, no API key)
+    ├── ollama.go   shared HTTP client, config, helpers
+    ├── chat.go     ChatCompleter implementation
+    └── embedding.go Embedder implementation
 ```
 
-Users import plugins via blank import:
+Future providers (openai, qdrant, etc.) may be extracted to a separate repository
+(`github.com/bachtiarpanjaitan/ihandai-go-plugins`).
+
+Users activate plugins via blank import:
 ```go
-import _ "github.com/bachtiarpanjaitan/ihandai-go-plugins/openai"
+import _ "github.com/bachtiarpanjaitan/ihandai-go/plugins/ollama"
+
+chat, _ := llm.Open("ollama", llm.WithModel("llama3"))
+embed, _ := embedding.Open("ollama", embedding.WithModel("nomic-embed-text"))
 ```

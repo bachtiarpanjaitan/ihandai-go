@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bachtiarpanjaitan/ihandai-go"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 )
 
 // Compile-time interface satisfaction checks
@@ -14,22 +14,22 @@ var _ VectorInserter = (*mockStore)(nil)
 var _ VectorDeleter = (*mockStore)(nil)
 
 type mockStore struct {
-	docs map[string]ihandai.Document
+	docs map[string]core.Document
 }
 
 func newMockStore() *mockStore {
-	return &mockStore{docs: make(map[string]ihandai.Document)}
+	return &mockStore{docs: make(map[string]core.Document)}
 }
 
-func (m *mockStore) Search(ctx context.Context, vector []float64, opts ...SearchOption) ([]ihandai.ScoredDocument, error) {
-	result := make([]ihandai.ScoredDocument, 0, len(m.docs))
+func (m *mockStore) Search(ctx context.Context, vector []float64, opts ...SearchOption) ([]core.ScoredDocument, error) {
+	result := make([]core.ScoredDocument, 0, len(m.docs))
 	for _, doc := range m.docs {
-		result = append(result, ihandai.ScoredDocument{Document: doc, Score: 0.95})
+		result = append(result, core.ScoredDocument{Document: doc, Score: 0.95})
 	}
 	return result, nil
 }
 
-func (m *mockStore) Insert(ctx context.Context, documents []ihandai.Document) error {
+func (m *mockStore) Insert(ctx context.Context, documents []core.Document) error {
 	for _, doc := range documents {
 		m.docs[doc.ID] = doc
 	}
@@ -45,13 +45,13 @@ func (m *mockStore) Delete(ctx context.Context, ids []string) error {
 
 type failingSearcher struct{}
 
-func (f failingSearcher) Search(ctx context.Context, vector []float64, opts ...SearchOption) ([]ihandai.ScoredDocument, error) {
+func (f failingSearcher) Search(ctx context.Context, vector []float64, opts ...SearchOption) ([]core.ScoredDocument, error) {
 	return nil, errors.New("search failed")
 }
 
 func TestVectorSearcher_Mock(t *testing.T) {
 	store := newMockStore()
-	store.Insert(context.Background(), []ihandai.Document{
+	store.Insert(context.Background(), []core.Document{
 		{ID: "1", Content: "doc 1"},
 		{ID: "2", Content: "doc 2"},
 	})
@@ -67,7 +67,7 @@ func TestVectorSearcher_Mock(t *testing.T) {
 
 func TestVectorInserter_Mock(t *testing.T) {
 	store := newMockStore()
-	err := store.Insert(context.Background(), []ihandai.Document{
+	err := store.Insert(context.Background(), []core.Document{
 		{ID: "1", Content: "doc"},
 	})
 	if err != nil {
@@ -80,7 +80,7 @@ func TestVectorInserter_Mock(t *testing.T) {
 
 func TestVectorDeleter_Mock(t *testing.T) {
 	store := newMockStore()
-	store.Insert(context.Background(), []ihandai.Document{
+	store.Insert(context.Background(), []core.Document{
 		{ID: "1", Content: "doc 1"},
 		{ID: "2", Content: "doc 2"},
 	})
