@@ -11,6 +11,7 @@ import (
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/embedding"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/llm"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/loader"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/mcp"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/memory"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/prompt"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/reranker"
@@ -69,6 +70,9 @@ type Client struct {
 
 	// Agent tools (protected by mu)
 	agentTools []tools.Tool
+
+	// MCP servers (protected by mu)
+	mcpServers []*mcp.Client
 }
 
 // New creates a new Client with the given options.
@@ -139,8 +143,15 @@ func New(opts ...Option) (*Client, error) {
 	return c, nil
 }
 
-// Close releases any resources held by the Client.
-func (c *Client) Close() error { return nil }
+// Close releases any resources held by the Client, including MCP connections.
+func (c *Client) Close() error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, srv := range c.mcpServers {
+		srv.Close()
+	}
+	return nil
+}
 
 // LLM returns the configured LLM provider, or nil.
 func (c *Client) LLM() llm.ChatCompleter { return c.llm }
@@ -638,4 +649,23 @@ func WithMemory(store memory.ConversationStore) Option {
 // WithTools registers tools for agent use.
 func WithTools(t ...tools.Tool) Option {
 	return func(c *Config) { c.AgentTools = append(c.AgentTools, t...) }
+}
+
+// SetMCP connects to an MCP server and makes its resources available.
+func (c *Client) SetMCP(client *mcp.Client) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.mcpServers = append(c.mcpServers, client)
+}
+
+// MCPResources returns all resources from all connected MCP servers.
+func (c *Client) MCPResources() []mcp.Resource {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	var all []mcp.Resource
+	for _, srv := range c.mcpServers {
+		resources, _ := srv.ListResources(context.Background())
+		all = append(all, resources...)
+	}
+	return all
 }
