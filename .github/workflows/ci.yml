@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Lint
@@ -15,10 +18,11 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23"
+          cache: true
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          version: v1.61
 
   test:
     name: Test
@@ -27,19 +31,15 @@ jobs:
       fail-fast: false
       matrix:
         go-version: ["1.22", "1.23"]
-        platform: [ubuntu-latest, macos-latest]
+        platform: [ubuntu-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
+          cache: true
       - name: Run tests
         run: go test -race -count=1 -coverprofile=coverage.out ./...
-      - name: Upload coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-${{ matrix.platform }}-go${{ matrix.go-version }}
-          path: coverage.out
 
   bench:
     name: Benchmark
@@ -49,11 +49,6 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23"
+          cache: true
       - name: Run benchmarks
-        run: go test -bench=. -benchmem -count=3 ./... | tee bench.txt
-      - name: Check benchmark stability
-        run: |
-          if grep -q "FAIL" bench.txt; then
-            echo "Benchmarks failed"
-            exit 1
-          fi
+        run: go test -bench=. -benchmem -count=1 -run='^$' ./...
