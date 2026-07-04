@@ -388,55 +388,55 @@ func (c *Client) AskConversation(ctx context.Context, key string, query string, 
 	// Build messages with history
 	history = append(history, core.Message{Role: "user", Content: query})
 
-	// Run the RAG pipeline (skip prompt building since we have history)
-	c.mu.RLock()
-	ret := c.retriever
-	rerank := c.reranker
-	c.mu.RUnlock()
+	// If RAG is configured, enhance with retrieved context
+	if c.embedding != nil && c.vectorStore != nil {
+		c.mu.RLock()
+		ret := c.retriever
+		rerank := c.reranker
+		c.mu.RUnlock()
 
-	askCfg := AskConfig{TopK: 5}
-	for _, opt := range opts {
-		opt(&askCfg)
-	}
-	if askCfg.Strategy != nil {
-		ret = askCfg.Strategy
-	}
-	if ret == nil {
-		ret = retriever.NewTopK(c.vectorStore)
-	}
-
-	// Run RAG to get context, then combine with history
-	queryVec, err := c.embedding.Embed(ctx, query)
-	if err != nil {
-		return nil, &PipelineError{Step: "embed", Err: err}
-	}
-
-	retOpts := []retriever.RetrieveOption{retriever.WithTopK(askCfg.TopK)}
-	if askCfg.Filter != nil {
-		retOpts = append(retOpts, retriever.WithFilter(askCfg.Filter))
-	}
-	docs, err := ret.Retrieve(ctx, queryVec, retOpts...)
-	if err != nil {
-		return nil, &PipelineError{Step: "search", Err: err}
-	}
-
-	if rerank != nil && len(docs) > 0 {
-		rawDocs := make([]core.Document, len(docs))
-		for i, d := range docs {
-			rawDocs[i] = d.Document
+		askCfg := AskConfig{TopK: 5}
+		for _, opt := range opts {
+			opt(&askCfg)
 		}
-		reranked, err := rerank.Rerank(ctx, query, rawDocs)
+		if askCfg.Strategy != nil {
+			ret = askCfg.Strategy
+		}
+		if ret == nil {
+			ret = retriever.NewTopK(c.vectorStore)
+		}
+
+		queryVec, err := c.embedding.Embed(ctx, query)
 		if err != nil {
-			c.cfg.Logger.Warn("reranking failed, continuing", "error", err)
-		} else {
-			docs = reranked
+			return nil, &PipelineError{Step: "embed", Err: err}
 		}
-	}
 
-	// Inject context as system message at the front
-	if len(docs) > 0 {
-		ctxMsg := buildContextMessage(docs)
-		history = append([]core.Message{{Role: "system", Content: ctxMsg}}, history...)
+		retOpts := []retriever.RetrieveOption{retriever.WithTopK(askCfg.TopK)}
+		if askCfg.Filter != nil {
+			retOpts = append(retOpts, retriever.WithFilter(askCfg.Filter))
+		}
+		docs, err := ret.Retrieve(ctx, queryVec, retOpts...)
+		if err != nil {
+			return nil, &PipelineError{Step: "search", Err: err}
+		}
+
+		if rerank != nil && len(docs) > 0 {
+			rawDocs := make([]core.Document, len(docs))
+			for i, d := range docs {
+				rawDocs[i] = d.Document
+			}
+			reranked, err := rerank.Rerank(ctx, query, rawDocs)
+			if err != nil {
+				c.cfg.Logger.Warn("reranking failed, continuing", "error", err)
+			} else {
+				docs = reranked
+			}
+		}
+
+		if len(docs) > 0 {
+			ctxMsg := buildContextMessage(docs)
+			history = append([]core.Message{{Role: "system", Content: ctxMsg}}, history...)
+		}
 	}
 
 	resp, err := c.llm.Chat(ctx, history)
