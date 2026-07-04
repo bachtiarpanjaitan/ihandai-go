@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/agent"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/embedding"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/llm"
@@ -15,6 +16,7 @@ import (
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/reranker"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/retriever"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/splitter"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/tools"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/vectordb"
 )
 
@@ -34,6 +36,9 @@ type Config struct {
 
 	// Memory
 	MemoryStore memory.ConversationStore
+
+	// Agent tools
+	AgentTools []tools.Tool
 }
 
 // Option is a functional option for configuring the Client.
@@ -61,6 +66,9 @@ type Client struct {
 
 	// Memory (protected by mu)
 	memStore memory.ConversationStore
+
+	// Agent tools (protected by mu)
+	agentTools []tools.Tool
 }
 
 // New creates a new Client with the given options.
@@ -121,6 +129,12 @@ func New(opts ...Option) (*Client, error) {
 
 	// Memory
 	c.memStore = cfg.MemoryStore
+
+	// Agent tools
+	if len(cfg.AgentTools) > 0 {
+		c.agentTools = make([]tools.Tool, len(cfg.AgentTools))
+		copy(c.agentTools, cfg.AgentTools)
+	}
 
 	return c, nil
 }
@@ -417,6 +431,42 @@ func (c *Client) AskConversation(ctx context.Context, key string, query string, 
 	return resp, nil
 }
 
+// Run executes an autonomous agent to achieve the given goal.
+// The agent has access to any tools registered via SetTools or WithTools.
+func (c *Client) Run(ctx context.Context, goal string) (*agent.Result, error) {
+	if c.llm == nil {
+		return nil, fmt.Errorf("ihandai: LLM provider not configured for agent")
+	}
+
+	c.mu.RLock()
+	tools := make([]tools.Tool, len(c.agentTools))
+	copy(tools, c.agentTools)
+	c.mu.RUnlock()
+
+	a := agent.NewReAct(agent.Config{
+		LLM:       c.llm,
+		Tools:     tools,
+		MaxSteps:  10,
+	})
+	return a.Run(ctx, goal)
+}
+
+// SetTools registers tools available to agents.
+func (c *Client) SetTools(t ...tools.Tool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.agentTools = append(c.agentTools, t...)
+}
+
+// Tools returns a copy of the registered agent tools.
+func (c *Client) Tools() []tools.Tool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	result := make([]tools.Tool, len(c.agentTools))
+	copy(result, c.agentTools)
+	return result
+}
+
 func buildContextMessage(docs []core.ScoredDocument) string {
 	var s string
 	for i, doc := range docs {
@@ -583,4 +633,9 @@ func WithVectorStore(name string, opts ...vectordb.Option) Option {
 // WithMemory configures a conversation store for multi-turn conversations.
 func WithMemory(store memory.ConversationStore) Option {
 	return func(c *Config) { c.MemoryStore = store }
+}
+
+// WithTools registers tools for agent use.
+func WithTools(t ...tools.Tool) Option {
+	return func(c *Config) { c.AgentTools = append(c.AgentTools, t...) }
 }
