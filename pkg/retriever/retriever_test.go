@@ -52,12 +52,16 @@ func (m *mockStore) Search(ctx context.Context, vector []float64, opts ...vector
 }
 
 func (m *mockStore) Insert(ctx context.Context, documents []core.Document) error {
-	for _, doc := range documents { m.docs[doc.ID] = doc }
+	for _, doc := range documents {
+		m.docs[doc.ID] = doc
+	}
 	return nil
 }
 
 func (m *mockStore) Delete(ctx context.Context, ids []string) error {
-	for _, id := range ids { delete(m.docs, id) }
+	for _, id := range ids {
+		delete(m.docs, id)
+	}
 	return nil
 }
 

@@ -13,8 +13,8 @@ var _ Tool = (*mockTool)(nil)
 
 type mockTool struct{}
 
-func (m mockTool) Name() string                   { return "mock_tool" }
-func (m mockTool) Description() string             { return "A mock tool for testing" }
+func (m mockTool) Name() string                  { return "mock_tool" }
+func (m mockTool) Description() string           { return "A mock tool for testing" }
 func (m mockTool) InputSchema() *core.JSONSchema { return &core.JSONSchema{Type: "object"} }
 func (m mockTool) Execute(ctx context.Context, input json.RawMessage) (json.RawMessage, error) {
 	return json.RawMessage(`{"status":"ok"}`), nil

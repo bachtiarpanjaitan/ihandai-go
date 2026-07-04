@@ -27,9 +27,11 @@ func (m *mockAgentLLM) Chat(ctx context.Context, msgs []core.Message) (*core.Res
 
 type mockTool struct{}
 
-func (m mockTool) Name() string                  { return "echo" }
-func (m mockTool) Description() string            { return "Echoes back the input" }
-func (m mockTool) InputSchema() *core.JSONSchema   { return &core.JSONSchema{Type: "object", Properties: map[string]*core.JSONSchemaProp{"message": {Type: "string"}}} }
+func (m mockTool) Name() string        { return "echo" }
+func (m mockTool) Description() string { return "Echoes back the input" }
+func (m mockTool) InputSchema() *core.JSONSchema {
+	return &core.JSONSchema{Type: "object", Properties: map[string]*core.JSONSchemaProp{"message": {Type: "string"}}}
+}
 func (m mockTool) Execute(ctx context.Context, input json.RawMessage) (json.RawMessage, error) {
 	return input, nil
 }

@@ -90,10 +90,10 @@ type chatMessage struct {
 
 // chatResponse is the JSON response from POST /api/chat.
 type chatResponse struct {
-	Model     string      `json:"model"`
-	Message   chatMessage `json:"message"`
-	Done      bool        `json:"done"`
-	DoneReason string     `json:"done_reason,omitempty"`
+	Model      string      `json:"model"`
+	Message    chatMessage `json:"message"`
+	Done       bool        `json:"done"`
+	DoneReason string      `json:"done_reason,omitempty"`
 }
 
 // embedRequest is the JSON body for POST /api/embeddings.

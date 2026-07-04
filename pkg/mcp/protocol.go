@@ -52,9 +52,9 @@ type Capabilities struct{}
 
 // InitializeResult is the server's response to initialize.
 type InitializeResult struct {
-	ProtocolVersion string            `json:"protocolVersion"`
+	ProtocolVersion string             `json:"protocolVersion"`
 	Capabilities    ServerCapabilities `json:"capabilities"`
-	ServerInfo      ServerInfo        `json:"serverInfo"`
+	ServerInfo      ServerInfo         `json:"serverInfo"`
 }
 
 // ServerCapabilities describes what the server supports.

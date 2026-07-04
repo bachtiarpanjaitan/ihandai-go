@@ -22,8 +22,10 @@ func NewHTTPRequest() *HTTPRequest {
 	return &HTTPRequest{client: &http.Client{Timeout: 10 * time.Second}}
 }
 
-func (h *HTTPRequest) Name() string        { return "http_get" }
-func (h *HTTPRequest) Description() string { return "Make an HTTP GET request to fetch content from a URL." }
+func (h *HTTPRequest) Name() string { return "http_get" }
+func (h *HTTPRequest) Description() string {
+	return "Make an HTTP GET request to fetch content from a URL."
+}
 func (h *HTTPRequest) InputSchema() *core.JSONSchema {
 	return &core.JSONSchema{
 		Type: "object",

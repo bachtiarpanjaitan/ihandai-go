@@ -31,9 +31,9 @@ type Step struct {
 
 // StepResult holds the output of a completed step.
 type StepResult struct {
-	Name   string
-	Output map[string]any
-	Error  error
+	Name    string
+	Output  map[string]any
+	Error   error
 	Skipped bool
 }
 
@@ -95,8 +95,8 @@ func (w *Workflow) Save(path string) error {
 		DependsOn []string `json:"depends_on,omitempty"`
 	}
 	type wfJSON struct {
-		Name  string      `json:"name"`
-		Steps []stepJSON  `json:"steps"`
+		Name  string     `json:"name"`
+		Steps []stepJSON `json:"steps"`
 	}
 
 	j := wfJSON{Name: w.name}
@@ -119,8 +119,8 @@ func Load(path string) (*Workflow, error) {
 		DependsOn []string `json:"depends_on,omitempty"`
 	}
 	type wfJSON struct {
-		Name  string      `json:"name"`
-		Steps []stepJSON  `json:"steps"`
+		Name  string     `json:"name"`
+		Steps []stepJSON `json:"steps"`
 	}
 
 	data, err := os.ReadFile(path)

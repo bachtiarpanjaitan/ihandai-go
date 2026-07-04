@@ -38,10 +38,10 @@ type CircuitBreaker struct {
 	failureThreshold int
 	resetTimeout     time.Duration
 
-	mu             sync.Mutex
-	state          CircuitState
-	failureCount   int
-	lastFailure    time.Time
+	mu              sync.Mutex
+	state           CircuitState
+	failureCount    int
+	lastFailure     time.Time
 	lastStateChange time.Time
 }
 

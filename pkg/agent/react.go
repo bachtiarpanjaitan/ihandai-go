@@ -96,10 +96,10 @@ func (r *ReAct) Run(ctx context.Context, goal string) (*Result, error) {
 }
 
 var (
-	actionRe = regexp.MustCompile(`Action:\s*(.+)`)
-	inputRe  = regexp.MustCompile(`Action Input:\s*(.+)`)
+	actionRe  = regexp.MustCompile(`Action:\s*(.+)`)
+	inputRe   = regexp.MustCompile(`Action Input:\s*(.+)`)
 	thoughtRe = regexp.MustCompile(`Thought:\s*(.+)`)
-	finalRe  = regexp.MustCompile(`Final Answer:\s*(.+)`)
+	finalRe   = regexp.MustCompile(`Final Answer:\s*(.+)`)
 )
 
 func (r *ReAct) parseResponse(text string) (Step, bool) {

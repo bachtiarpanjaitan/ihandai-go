@@ -17,10 +17,10 @@ import (
 // This improves recall for complex or ambiguous queries by searching
 // from multiple angles.
 type MultiQuery struct {
-	searcher  vectordb.VectorSearcher
-	llm       llm.ChatCompleter
-	embedder  embedding.Embedder
-	variants  int
+	searcher vectordb.VectorSearcher
+	llm      llm.ChatCompleter
+	embedder embedding.Embedder
+	variants int
 }
 
 // NewMultiQuery creates a new MultiQuery retriever.
@@ -151,12 +151,18 @@ func (m *MultiQuery) generateVariants(ctx context.Context, baseEmbedding []float
 
 func itos(n int) string {
 	switch n {
-	case 1: return "1"
-	case 2: return "2"
-	case 3: return "3"
-	case 4: return "4"
-	case 5: return "5"
-	default: return "2"
+	case 1:
+		return "1"
+	case 2:
+		return "2"
+	case 3:
+		return "3"
+	case 4:
+		return "4"
+	case 5:
+		return "5"
+	default:
+		return "2"
 	}
 }
 

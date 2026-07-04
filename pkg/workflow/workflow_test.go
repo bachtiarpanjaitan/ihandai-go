@@ -73,7 +73,7 @@ func TestWorkflow_ConditionalSkip(t *testing.T) {
 		return map[string]any{"run": shouldRun}, nil
 	}})
 	w.AddStep(&Step{
-		Name:      "conditional",
+		Name: "conditional",
 		Condition: func(ctx context.Context, inputs map[string]any) (map[string]any, error) {
 			if run, _ := inputs["run"].(bool); !run {
 				return nil, nil // skip

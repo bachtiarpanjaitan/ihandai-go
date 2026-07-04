@@ -245,7 +245,7 @@ func WithRetriever(r retriever.Retriever) AskOption {
 
 // IndexConfig holds per-index configuration.
 type IndexConfig struct {
-	Loader  loader.DocumentLoader
+	Loader   loader.DocumentLoader
 	Splitter splitter.TextSplitter
 }
 
@@ -268,11 +268,11 @@ func WithSplitter(s splitter.TextSplitter) IndexOption {
 
 // Ask runs the full RAG query pipeline.
 //
-//	1. Embed query
-//	2. Search vector store
-//	3. Rerank (optional)
-//	4. Build prompt
-//	5. Chat completion
+//  1. Embed query
+//  2. Search vector store
+//  3. Rerank (optional)
+//  4. Build prompt
+//  5. Chat completion
 //
 // Options control retrieval: WithTopK, WithFilter, WithRetriever.
 func (c *Client) Ask(ctx context.Context, query string, opts ...AskOption) (*core.Response, error) {
@@ -455,9 +455,9 @@ func (c *Client) Run(ctx context.Context, goal string) (*agent.Result, error) {
 	c.mu.RUnlock()
 
 	a := agent.NewReAct(agent.Config{
-		LLM:       c.llm,
-		Tools:     tools,
-		MaxSteps:  10,
+		LLM:      c.llm,
+		Tools:    tools,
+		MaxSteps: 10,
 	})
 	return a.Run(ctx, goal)
 }
@@ -488,10 +488,10 @@ func buildContextMessage(docs []core.ScoredDocument) string {
 
 // Index runs the document indexing pipeline.
 //
-//	1. Load documents from source
-//	2. Split into chunks
-//	3. Embed chunks
-//	4. Insert into vector store
+//  1. Load documents from source
+//  2. Split into chunks
+//  3. Embed chunks
+//  4. Insert into vector store
 func (c *Client) Index(ctx context.Context, source string, opts ...IndexOption) error {
 	if c.indexEmbedding == nil {
 		return fmt.Errorf("ihandai: embedding provider not configured")

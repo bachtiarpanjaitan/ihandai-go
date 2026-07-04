@@ -17,8 +17,10 @@ type Calculator struct{}
 // NewCalculator creates a new Calculator tool.
 func NewCalculator() *Calculator { return &Calculator{} }
 
-func (c *Calculator) Name() string        { return "calculator" }
-func (c *Calculator) Description() string { return "Evaluate a mathematical expression. Supports +, -, *, /, and parentheses." }
+func (c *Calculator) Name() string { return "calculator" }
+func (c *Calculator) Description() string {
+	return "Evaluate a mathematical expression. Supports +, -, *, /, and parentheses."
+}
 func (c *Calculator) InputSchema() *core.JSONSchema {
 	return &core.JSONSchema{
 		Type: "object",
