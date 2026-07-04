@@ -61,7 +61,7 @@ func TestEmbedder_ContextCancelled(t *testing.T) {
 	cancel()
 	_, err := (&failingEmbedder{}).Embed(ctx, "test")
 	if err == nil {
-		t.Error("expected error for cancelled context")
+		t.Error("expected error for canceled context")
 	}
 }
 

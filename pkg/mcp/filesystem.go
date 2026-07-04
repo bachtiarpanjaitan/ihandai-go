@@ -59,7 +59,7 @@ func (s *FilesystemServer) handleListResources() (json.RawMessage, error) {
 	var resources []Resource
 	err := filepath.Walk(s.root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil // skip files with errors
+			return err
 		}
 		if info.IsDir() {
 			return nil

@@ -9,10 +9,10 @@ import (
 // WindowManager provides context window management for conversations.
 // It estimates token usage and can trim history to fit within model limits.
 type WindowManager struct {
-	store       ConversationStore
-	maxTokens   int
-	model       string
-	counter     TokenCounter
+	store     ConversationStore
+	maxTokens int
+	model     string
+	counter   TokenCounter
 }
 
 // NewWindowManager creates a WindowManager for the given store and model.

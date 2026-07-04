@@ -111,7 +111,7 @@ func TestChatCompleter_ContextCancelled(t *testing.T) {
 	c := NewChatCompleter(WithBaseURL(server.URL), WithModel("llama3"))
 	_, err := c.Chat(ctx, []core.Message{{Role: "user", Content: "Hi"}})
 	if err == nil {
-		t.Error("expected error for cancelled context")
+		t.Error("expected error for canceled context")
 	}
 }
 

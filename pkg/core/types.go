@@ -64,8 +64,8 @@ type JSONSchema struct {
 
 // JSONSchemaProp represents a property within a JSON Schema.
 type JSONSchemaProp struct {
-	Type        string           `json:"type"`
-	Description string           `json:"description,omitempty"`
-	Enum        []string         `json:"enum,omitempty"`
-	Items       *JSONSchemaProp  `json:"items,omitempty"`
+	Type        string          `json:"type"`
+	Description string          `json:"description,omitempty"`
+	Enum        []string        `json:"enum,omitempty"`
+	Items       *JSONSchemaProp `json:"items,omitempty"`
 }

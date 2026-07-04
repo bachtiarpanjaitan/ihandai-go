@@ -28,7 +28,6 @@ type Client struct {
 	server    ServerInfo
 	id        atomic.Int64
 
-	mu        sync.Mutex
 	resources map[string]Resource
 	tools     map[string]Tool
 }

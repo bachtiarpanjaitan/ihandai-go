@@ -10,8 +10,8 @@ import (
 // InMemoryStore is a thread-safe, in-memory conversation store.
 // Conversations are lost when the process exits. Use for development and testing.
 type InMemoryStore struct {
-	mu      sync.RWMutex
-	convos  map[string][]core.Message
+	mu     sync.RWMutex
+	convos map[string][]core.Message
 }
 
 // NewInMemoryStore creates a new in-memory conversation store.

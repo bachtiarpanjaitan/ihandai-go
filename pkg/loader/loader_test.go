@@ -53,6 +53,6 @@ func TestDocumentLoader_ContextCancelled(t *testing.T) {
 	cancel()
 	_, err := (&failingLoader{}).Load(ctx, "test.txt")
 	if err == nil {
-		t.Error("expected error from cancelled context")
+		t.Error("expected error from canceled context")
 	}
 }

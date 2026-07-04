@@ -126,7 +126,7 @@ func (m *MultiQuery) generateVariants(ctx context.Context, baseEmbedding []float
 	// Generate text variants via LLM
 	resp, err := m.llm.Chat(ctx, prompt)
 	if err != nil {
-		return variants, nil // return original only
+		return variants, err
 	}
 
 	// Parse variants and embed them

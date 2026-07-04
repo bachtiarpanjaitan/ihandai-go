@@ -108,7 +108,7 @@ func TestContextCancellation(t *testing.T) {
 	s := failingSearcher{}
 	_, err := s.Search(ctx, nil)
 	if err == nil {
-		t.Error("expected error from cancelled context")
+		t.Error("expected error from canceled context")
 	}
 }
 

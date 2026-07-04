@@ -246,7 +246,7 @@ func TestAsk_ContextCancelled(t *testing.T) {
 
 	_, err := ai.Ask(ctx, "test")
 	if err == nil {
-		t.Error("expected error for cancelled context")
+		t.Error("expected error for canceled context")
 	}
 }
 
