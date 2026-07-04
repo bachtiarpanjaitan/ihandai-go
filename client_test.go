@@ -10,6 +10,7 @@ import (
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/embedding"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/llm"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/retriever"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/vectordb"
 )
 
@@ -317,15 +318,117 @@ func TestPipelineError_Wrapping(t *testing.T) {
 	)
 	defer ai.Close()
 
-	// This should still succeed because mock providers work
 	_, err := ai.Ask(context.Background(), "test")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Verify PipelineError wrapping works
 	pe := &PipelineError{Step: "chat", Err: context.Canceled}
 	if pe.Error() == "" {
 		t.Error("PipelineError should have a non-empty message")
 	}
+}
+
+func TestAsk_WithTopK(t *testing.T) {
+	ai, _ := New(
+		WithLLM("mock"),
+		WithEmbedding("mock"),
+		WithVectorStore("mock"),
+	)
+	defer ai.Close()
+
+	resp, err := ai.Ask(context.Background(), "test",
+		WithTopK(3),
+	)
+	if err != nil {
+		t.Fatalf("Ask with TopK failed: %v", err)
+	}
+	if resp.Content != "mock response" {
+		t.Errorf("got %q, want %q", resp.Content, "mock response")
+	}
+}
+
+func TestAsk_WithFilter(t *testing.T) {
+	ai, _ := New(
+		WithLLM("mock"),
+		WithEmbedding("mock"),
+		WithVectorStore("mock"),
+	)
+	defer ai.Close()
+
+	resp, err := ai.Ask(context.Background(), "test",
+		WithFilter(map[string]any{"source": "docs/"}),
+	)
+	if err != nil {
+		t.Fatalf("Ask with filter failed: %v", err)
+	}
+	_ = resp
+}
+
+func TestAsk_WithCustomRetriever(t *testing.T) {
+	ai, _ := New(
+		WithLLM("mock"),
+		WithEmbedding("mock"),
+		WithVectorStore("mock"),
+	)
+	defer ai.Close()
+
+	// Use MMR retriever
+	mmr := retriever.NewMMR(ai.VectorStore(), 0.7)
+	resp, err := ai.Ask(context.Background(), "test",
+		WithRetriever(mmr),
+		WithTopK(3),
+	)
+	if err != nil {
+		t.Fatalf("Ask with custom retriever failed: %v", err)
+	}
+	if resp.Content != "mock response" {
+		t.Errorf("got %q, want %q", resp.Content, "mock response")
+	}
+}
+
+func TestIndex_WithCustomLoader(t *testing.T) {
+	ai, _ := New(
+		WithEmbedding("mock"),
+		WithVectorStore("mock"),
+	)
+	defer ai.Close()
+
+	// Use custom loader
+	customLoader := &mockLoader{docs: []core.Document{
+		{ID: "custom", Content: "custom doc"},
+	}}
+	err := ai.Index(context.Background(), "test-source",
+		WithLoader(customLoader),
+	)
+	if err != nil {
+		t.Fatalf("Index with custom loader failed: %v", err)
+	}
+}
+
+func TestAsk_Defaults(t *testing.T) {
+	ai, _ := New(
+		WithLLM("mock"),
+		WithEmbedding("mock"),
+		WithVectorStore("mock"),
+	)
+	defer ai.Close()
+
+	// Verify defaults work
+	resp, err := ai.Ask(context.Background(), "query")
+	if err != nil {
+		t.Fatalf("Ask with defaults failed: %v", err)
+	}
+	if resp.Content == "" {
+		t.Error("expected non-empty response")
+	}
+}
+
+// mockLoader for testing Index with custom loader
+type mockLoader struct {
+	docs []core.Document
+}
+
+func (m *mockLoader) Load(ctx context.Context, source string) ([]core.Document, error) {
+	return m.docs, nil
 }
