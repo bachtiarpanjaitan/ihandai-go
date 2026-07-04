@@ -4,75 +4,61 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/embedding"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/llm"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/loader"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/prompt"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/reranker"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/retriever"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/splitter"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/vectordb"
 )
 
 // Config holds all configuration for the Client.
-// It is created by New() and populated via functional options.
 type Config struct {
-	// Logger is the structured logger for the client and all providers.
 	Logger *slog.Logger
 
-	// LLM holds the LLM provider configuration.
-	LLMProvider string
-	LLMOptions  []llm.Option
-
-	// Embedding holds the embedding provider configuration.
-	EmbeddingProvider string
-	EmbeddingOptions  []embedding.Option
-
-	// IndexEmbedding (optional) holds a separate embedding provider for indexing.
-	// When empty, Embedding is used for both indexing and querying.
+	// Provider configurations
+	LLMProvider           string
+	LLMOptions            []llm.Option
+	EmbeddingProvider     string
+	EmbeddingOptions      []embedding.Option
 	IndexEmbeddingProvider string
 	IndexEmbeddingOptions  []embedding.Option
-
-	// VectorStore holds the vector store provider configuration.
-	VectorStoreProvider string
-	VectorStoreOptions  []vectordb.Option
+	VectorStoreProvider   string
+	VectorStoreOptions    []vectordb.Option
 }
 
 // Option is a functional option for configuring the Client.
-// Options are applied in order to a Config during New().
 type Option func(*Config)
 
 // Client is the main entry point for the ihandai library.
-//
-// Create one Client per application and reuse it across goroutines.
-// The Client is immutable after creation and safe for concurrent use.
-//
-//	import _ "github.com/bachtiarpanjaitan/ihandai-go/plugins/ollama"
-//
-//	ai, err := ihandai.New(
-//	    ihandai.WithLLM("ollama", llm.WithModel("llama3")),
-//	    ihandai.WithEmbedding("ollama", embedding.WithModel("nomic-embed-text")),
-//	)
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	defer ai.Close()
+// It is safe for concurrent use.
 type Client struct {
+	mu  sync.RWMutex
 	cfg *Config
 
-	llm       llm.ChatCompleter
-	embedding embedding.Embedder
-	vectordb  vectordb.VectorSearcher
+	// Providers (immutable after New)
+	llm            llm.ChatCompleter
+	streamLLM      llm.StreamCompleter
+	embedding      embedding.Embedder
+	indexEmbedding embedding.Embedder
+	vectorStore    vectordb.VectorSearcher
+
+	// Pipeline components (protected by mu)
+	promptBuilder prompt.PromptBuilder
+	retriever     retriever.Retriever
+	reranker      reranker.Reranker
+	loader        loader.DocumentLoader
+	splitter      splitter.TextSplitter
 }
 
 // New creates a new Client with the given options.
-//
-// Options are applied in order. If no logger is provided,
-// slog.Default() is used.
-//
-// Providers specified via WithLLM, WithEmbedding, WithVectorStore
-// are opened immediately. If a provider name is not registered
-// (via a blank import of its plugin), New returns an error.
 func New(opts ...Option) (*Client, error) {
-	cfg := &Config{
-		Logger: slog.Default(),
-	}
+	cfg := &Config{Logger: slog.Default()}
 	for _, opt := range opts {
 		opt(cfg)
 	}
@@ -86,6 +72,10 @@ func New(opts ...Option) (*Client, error) {
 			return nil, fmt.Errorf("ihandai: %w", err)
 		}
 		c.llm = chat
+		// Also try as StreamCompleter if it implements it
+		if sc, ok := chat.(llm.StreamCompleter); ok {
+			c.streamLLM = sc
+		}
 	}
 
 	// Open Embedding provider
@@ -97,134 +87,298 @@ func New(opts ...Option) (*Client, error) {
 		c.embedding = embed
 	}
 
+	// Open Index Embedding provider (or reuse query embedding)
+	if cfg.IndexEmbeddingProvider != "" {
+		embed, err := embedding.Open(cfg.IndexEmbeddingProvider, cfg.IndexEmbeddingOptions...)
+		if err != nil {
+			return nil, fmt.Errorf("ihandai: %w", err)
+		}
+		c.indexEmbedding = embed
+	} else {
+		c.indexEmbedding = c.embedding
+	}
+
 	// Open VectorStore provider
 	if cfg.VectorStoreProvider != "" {
 		store, err := vectordb.Open(cfg.VectorStoreProvider, cfg.VectorStoreOptions...)
 		if err != nil {
 			return nil, fmt.Errorf("ihandai: %w", err)
 		}
-		c.vectordb = store
+		c.vectorStore = store
 	}
+
+	// Default pipeline components
+	c.loader = loader.NewFile()
+	c.splitter = splitter.NewRecursive()
+	c.promptBuilder = prompt.NewSimple()
 
 	return c, nil
 }
 
-// Close releases any resources held by the Client and its providers.
-// After Close, the Client must not be used.
+// Close releases any resources held by the Client.
+func (c *Client) Close() error { return nil }
+
+// LLM returns the configured LLM provider, or nil.
+func (c *Client) LLM() llm.ChatCompleter { return c.llm }
+
+// Embedding returns the configured embedding provider, or nil.
+func (c *Client) Embedding() embedding.Embedder { return c.embedding }
+
+// VectorStore returns the configured vector store provider, or nil.
+func (c *Client) VectorStore() vectordb.VectorSearcher { return c.vectorStore }
+
+// SetRetriever replaces the default retriever. Default wraps VectorStore with top-K.
+func (c *Client) SetRetriever(r retriever.Retriever) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.retriever = r
+}
+
+// SetReranker sets an optional reranker (nil = skip reranking).
+func (c *Client) SetReranker(r reranker.Reranker) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.reranker = r
+}
+
+// SetPromptBuilder replaces the default prompt builder.
+func (c *Client) SetPromptBuilder(p prompt.PromptBuilder) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.promptBuilder = p
+}
+
+// SetLoader replaces the default file loader.
+func (c *Client) SetLoader(l loader.DocumentLoader) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.loader = l
+}
+
+// SetSplitter replaces the default recursive splitter.
+func (c *Client) SetSplitter(s splitter.TextSplitter) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.splitter = s
+}
+
+// Config returns a copy of the client's configuration.
+func (c *Client) Config() *Config { cp := *c.cfg; return &cp }
+
+// ---------------------------------------------------------------------------
+// Pipeline
+// ---------------------------------------------------------------------------
+
+// Ask runs the full RAG query pipeline.
 //
-// It is safe to call Close multiple times.
-func (c *Client) Close() error {
-	return nil
-}
-
-// LLM returns the configured LLM provider, or nil if not configured.
-func (c *Client) LLM() llm.ChatCompleter {
-	return c.llm
-}
-
-// Embedding returns the configured embedding provider, or nil if not configured.
-func (c *Client) Embedding() embedding.Embedder {
-	return c.embedding
-}
-
-// VectorStore returns the configured vector store provider, or nil if not configured.
-func (c *Client) VectorStore() vectordb.VectorSearcher {
-	return c.vectordb
-}
-
-// Ask sends a query through the RAG pipeline and returns the LLM response.
-// This requires LLM, Embedding, and VectorStore providers to be configured.
-// This is a placeholder that will be fully implemented in Phase 4 (Pipeline).
-func (c *Client) Ask(ctx context.Context, query string) (*Response, error) {
+//	1. Embed query
+//	2. Search vector store
+//	3. Rerank (optional)
+//	4. Build prompt
+//	5. Chat completion
+func (c *Client) Ask(ctx context.Context, query string) (*core.Response, error) {
 	if c.llm == nil {
 		return nil, fmt.Errorf("ihandai: LLM provider not configured")
 	}
 	if c.embedding == nil {
 		return nil, fmt.Errorf("ihandai: embedding provider not configured")
 	}
-	if c.vectordb == nil {
+	if c.vectorStore == nil {
 		return nil, fmt.Errorf("ihandai: vector store not configured")
 	}
 
-	// TODO Phase 4: full pipeline — embed → search → rerank → prompt → chat
-	// For now, just call LLM directly with the query
-	msgs := []Message{
-		{Role: "user", Content: query},
+	// Step 1: Embed query
+	queryVec, err := c.embedding.Embed(ctx, query)
+	if err != nil {
+		return nil, &PipelineError{Step: "embed", Err: err}
 	}
-	return c.llm.Chat(ctx, msgs)
+
+	// Step 2: Search vector store
+	c.mu.RLock()
+	ret := c.retriever
+	rerank := c.reranker
+	pb := c.promptBuilder
+	c.mu.RUnlock()
+
+	if ret == nil {
+		ret = retriever.NewTopK(c.vectorStore)
+	}
+	docs, err := ret.Retrieve(ctx, queryVec, retriever.WithTopK(5))
+	if err != nil {
+		return nil, &PipelineError{Step: "search", Err: err}
+	}
+
+	// Step 3: Rerank (optional)
+	if rerank != nil && len(docs) > 0 {
+		rawDocs := make([]core.Document, len(docs))
+		for i, d := range docs {
+			rawDocs[i] = d.Document
+		}
+		reranked, err := rerank.Rerank(ctx, query, rawDocs)
+		if err != nil {
+			c.cfg.Logger.Warn("reranking failed, continuing", "error", err)
+		} else {
+			docs = reranked
+		}
+	}
+
+	// Step 4: Build prompt
+	msgs, err := pb.Build(ctx, "", map[string]any{
+		"query":     query,
+		"documents": docs,
+	})
+	if err != nil {
+		return nil, &PipelineError{Step: "prompt", Err: err}
+	}
+
+	// Step 5: Chat completion
+	resp, err := c.llm.Chat(ctx, msgs)
+	if err != nil {
+		return nil, &PipelineError{Step: "chat", Err: err}
+	}
+
+	return resp, nil
 }
 
-// Index indexes documents into the vector store for later retrieval.
-// This requires Embedding and VectorStore providers to be configured.
-// This is a placeholder that will be fully implemented in Phase 4 (Pipeline).
-func (c *Client) Index(ctx context.Context, documents []Document) error {
-	if c.embedding == nil {
+// Index runs the document indexing pipeline.
+//
+//	1. Load documents from source
+//	2. Split into chunks
+//	3. Embed chunks
+//	4. Insert into vector store
+func (c *Client) Index(ctx context.Context, source string) error {
+	if c.indexEmbedding == nil {
 		return fmt.Errorf("ihandai: embedding provider not configured")
 	}
-	if c.vectordb == nil {
+	if c.vectorStore == nil {
 		return fmt.Errorf("ihandai: vector store not configured")
 	}
 
-	// TODO Phase 4: full pipeline — embed documents → insert into store
+	// Step 1: Load documents
+	c.mu.RLock()
+	ld := c.loader
+	sp := c.splitter
+	c.mu.RUnlock()
+
+	docs, err := ld.Load(ctx, source)
+	if err != nil {
+		return &PipelineError{Step: "load", Err: err}
+	}
+	if len(docs) == 0 {
+		return nil
+	}
+
+	// Step 2: Split into chunks
+	chunks, err := sp.Split(ctx, docs)
+	if err != nil {
+		return &PipelineError{Step: "split", Err: err}
+	}
+	if len(chunks) == 0 {
+		return nil
+	}
+
+	// Step 3: Embed chunks
+	texts := make([]string, len(chunks))
+	for i, ch := range chunks {
+		texts[i] = ch.Content
+	}
+	_, err = c.indexEmbedding.EmbedBatch(ctx, texts)
+	if err != nil {
+		return &PipelineError{Step: "embed", Err: err}
+	}
+
+	// Step 4: Insert into vector store
+	// Convert chunks to documents with embedding metadata
+	storeDocs := make([]core.Document, len(chunks))
+	for i, ch := range chunks {
+		storeDocs[i] = core.Document{
+			ID:      ch.ID,
+			Content: ch.Content,
+			Metadata: map[string]any{
+				"parent_id": ch.ParentID,
+			},
+		}
+	}
+
+	inserter, ok := c.vectorStore.(vectordb.VectorInserter)
+	if !ok {
+		return fmt.Errorf("ihandai: vector store does not support insertion")
+	}
+	if err := inserter.Insert(ctx, storeDocs); err != nil {
+		return &PipelineError{Step: "insert", Err: err}
+	}
+
 	return nil
 }
 
-// Config returns a copy of the client's configuration.
-// This is useful for debugging and testing.
-func (c *Client) Config() *Config {
-	cp := *c.cfg
-	return &cp
+// AskStream runs the Ask pipeline with streaming response.
+// Returns a channel that receives response chunks as they are generated.
+func (c *Client) AskStream(ctx context.Context, query string) (<-chan llm.Chunk, error) {
+	if c.streamLLM == nil {
+		return nil, fmt.Errorf("ihandai: LLM provider does not support streaming")
+	}
+	if c.embedding == nil {
+		return nil, fmt.Errorf("ihandai: embedding provider not configured")
+	}
+	if c.vectorStore == nil {
+		return nil, fmt.Errorf("ihandai: vector store not configured")
+	}
+
+	// Run steps 1-4 synchronously, then stream step 5
+	queryVec, err := c.embedding.Embed(ctx, query)
+	if err != nil {
+		return nil, &PipelineError{Step: "embed", Err: err}
+	}
+
+	c.mu.RLock()
+	ret := c.retriever
+	pb := c.promptBuilder
+	c.mu.RUnlock()
+
+	if ret == nil {
+		ret = retriever.NewTopK(c.vectorStore)
+	}
+	docs, err := ret.Retrieve(ctx, queryVec, retriever.WithTopK(5))
+	if err != nil {
+		return nil, &PipelineError{Step: "search", Err: err}
+	}
+
+	msgs, err := pb.Build(ctx, "", map[string]any{
+		"query":     query,
+		"documents": docs,
+	})
+	if err != nil {
+		return nil, &PipelineError{Step: "prompt", Err: err}
+	}
+
+	return c.streamLLM.ChatStream(ctx, msgs)
 }
 
-// WithLogger sets the structured logger for the client.
-// If not set, slog.Default() is used.
+// ---------------------------------------------------------------------------
+// Options
+// ---------------------------------------------------------------------------
+
+// WithLogger sets the structured logger.
 func WithLogger(logger *slog.Logger) Option {
-	return func(c *Config) {
-		c.Logger = logger
-	}
+	return func(c *Config) { c.Logger = logger }
 }
 
-// WithLLM configures an LLM provider by name.
-// The provider must be registered via a blank import of its plugin.
-//
-//	ihandai.WithLLM("openai", llm.WithModel("gpt-4o"))
+// WithLLM configures an LLM provider.
 func WithLLM(name string, opts ...llm.Option) Option {
-	return func(c *Config) {
-		c.LLMProvider = name
-		c.LLMOptions = opts
-	}
+	return func(c *Config) { c.LLMProvider = name; c.LLMOptions = opts }
 }
 
-// WithEmbedding configures an embedding provider by name.
-// The provider must be registered via a blank import of its plugin.
-//
-//	ihandai.WithEmbedding("ollama", embedding.WithModel("nomic-embed-text"))
+// WithEmbedding configures an embedding provider.
 func WithEmbedding(name string, opts ...embedding.Option) Option {
-	return func(c *Config) {
-		c.EmbeddingProvider = name
-		c.EmbeddingOptions = opts
-	}
+	return func(c *Config) { c.EmbeddingProvider = name; c.EmbeddingOptions = opts }
 }
 
 // WithIndexEmbedding configures a separate embedding provider for indexing.
-// When not set, the same provider as WithEmbedding is used for both.
-// Useful when you want a local model for bulk indexing but a cloud model for queries.
-//
-//	ihandai.WithIndexEmbedding("ollama", embedding.WithModel("nomic-embed-text"))
 func WithIndexEmbedding(name string, opts ...embedding.Option) Option {
-	return func(c *Config) {
-		c.IndexEmbeddingProvider = name
-		c.IndexEmbeddingOptions = opts
-	}
+	return func(c *Config) { c.IndexEmbeddingProvider = name; c.IndexEmbeddingOptions = opts }
 }
 
-// WithVectorStore configures a vector store provider by name.
-// The provider must be registered via a blank import of its plugin.
-//
-//	ihandai.WithVectorStore("qdrant", vectordb.WithURL("http://localhost:6333"))
+// WithVectorStore configures a vector store provider.
 func WithVectorStore(name string, opts ...vectordb.Option) Option {
-	return func(c *Config) {
-		c.VectorStoreProvider = name
-		c.VectorStoreOptions = opts
-	}
+	return func(c *Config) { c.VectorStoreProvider = name; c.VectorStoreOptions = opts }
 }
