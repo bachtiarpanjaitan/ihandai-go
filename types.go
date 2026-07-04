@@ -1,6 +1,21 @@
-// Package ihandai is a provider-agnostic AI library for Go.
-// It provides composable interfaces for LLM, embedding, vector stores,
-// and orchestrates them into RAG pipelines.
+// Package ihandai is a provider-agnostic AI framework for Go.
+//
+// It provides composable interfaces for LLM, embedding, and vector stores,
+// orchestrating them into RAG pipelines, autonomous agents, and multi-step
+// workflows — all while letting you swap providers without code changes.
+//
+// Quick start:
+//
+//	import (
+//	    "github.com/bachtiarpanjaitan/ihandai-go"
+//	    _ "github.com/bachtiarpanjaitan/ihandai-go/plugins/ollama"
+//	)
+//
+//	ai, _ := ihandai.New(
+//	    ihandai.WithLLM("ollama", llm.WithModel("llama3")),
+//	    ihandai.WithEmbedding("ollama", embedding.WithModel("nomic-embed-text")),
+//	)
+//	resp, _ := ai.Ask(ctx, "What is RAG?")
 package ihandai
 
 import "github.com/bachtiarpanjaitan/ihandai-go/pkg/core"
