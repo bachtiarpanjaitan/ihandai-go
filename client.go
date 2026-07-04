@@ -166,6 +166,54 @@ func (c *Client) SetSplitter(s splitter.TextSplitter) {
 func (c *Client) Config() *Config { cp := *c.cfg; return &cp }
 
 // ---------------------------------------------------------------------------
+// Query options
+// ---------------------------------------------------------------------------
+
+// AskConfig holds per-query configuration.
+type AskConfig struct {
+	TopK     int
+	Filter   map[string]any
+	Strategy retriever.Retriever // custom retriever override
+}
+
+// AskOption is a per-query option for Ask().
+type AskOption func(*AskConfig)
+
+// WithTopK sets the number of documents to retrieve.
+func WithTopK(k int) AskOption {
+	return func(c *AskConfig) { c.TopK = k }
+}
+
+// WithFilter sets metadata filters for the query.
+func WithFilter(f map[string]any) AskOption {
+	return func(c *AskConfig) { c.Filter = f }
+}
+
+// WithRetriever overrides the default retriever for this query.
+func WithRetriever(r retriever.Retriever) AskOption {
+	return func(c *AskConfig) { c.Strategy = r }
+}
+
+// IndexConfig holds per-index configuration.
+type IndexConfig struct {
+	Loader  loader.DocumentLoader
+	Splitter splitter.TextSplitter
+}
+
+// IndexOption is a per-call option for Index().
+type IndexOption func(*IndexConfig)
+
+// WithLoader overrides the default loader for this index call.
+func WithLoader(l loader.DocumentLoader) IndexOption {
+	return func(c *IndexConfig) { c.Loader = l }
+}
+
+// WithSplitter overrides the default splitter for this index call.
+func WithSplitter(s splitter.TextSplitter) IndexOption {
+	return func(c *IndexConfig) { c.Splitter = s }
+}
+
+// ---------------------------------------------------------------------------
 // Pipeline
 // ---------------------------------------------------------------------------
 
@@ -176,7 +224,9 @@ func (c *Client) Config() *Config { cp := *c.cfg; return &cp }
 //	3. Rerank (optional)
 //	4. Build prompt
 //	5. Chat completion
-func (c *Client) Ask(ctx context.Context, query string) (*core.Response, error) {
+//
+// Options control retrieval: WithTopK, WithFilter, WithRetriever.
+func (c *Client) Ask(ctx context.Context, query string, opts ...AskOption) (*core.Response, error) {
 	if c.llm == nil {
 		return nil, fmt.Errorf("ihandai: LLM provider not configured")
 	}
@@ -185,6 +235,12 @@ func (c *Client) Ask(ctx context.Context, query string) (*core.Response, error) 
 	}
 	if c.vectorStore == nil {
 		return nil, fmt.Errorf("ihandai: vector store not configured")
+	}
+
+	// Apply query options
+	askCfg := AskConfig{TopK: 5}
+	for _, opt := range opts {
+		opt(&askCfg)
 	}
 
 	// Step 1: Embed query
@@ -200,10 +256,17 @@ func (c *Client) Ask(ctx context.Context, query string) (*core.Response, error) 
 	pb := c.promptBuilder
 	c.mu.RUnlock()
 
+	if askCfg.Strategy != nil {
+		ret = askCfg.Strategy
+	}
 	if ret == nil {
 		ret = retriever.NewTopK(c.vectorStore)
 	}
-	docs, err := ret.Retrieve(ctx, queryVec, retriever.WithTopK(5))
+	retOpts := []retriever.RetrieveOption{retriever.WithTopK(askCfg.TopK)}
+	if askCfg.Filter != nil {
+		retOpts = append(retOpts, retriever.WithFilter(askCfg.Filter))
+	}
+	docs, err := ret.Retrieve(ctx, queryVec, retOpts...)
 	if err != nil {
 		return nil, &PipelineError{Step: "search", Err: err}
 	}
@@ -246,7 +309,7 @@ func (c *Client) Ask(ctx context.Context, query string) (*core.Response, error) 
 //	2. Split into chunks
 //	3. Embed chunks
 //	4. Insert into vector store
-func (c *Client) Index(ctx context.Context, source string) error {
+func (c *Client) Index(ctx context.Context, source string, opts ...IndexOption) error {
 	if c.indexEmbedding == nil {
 		return fmt.Errorf("ihandai: embedding provider not configured")
 	}
@@ -254,11 +317,23 @@ func (c *Client) Index(ctx context.Context, source string) error {
 		return fmt.Errorf("ihandai: vector store not configured")
 	}
 
+	idxCfg := IndexConfig{}
+	for _, opt := range opts {
+		opt(&idxCfg)
+	}
+
 	// Step 1: Load documents
 	c.mu.RLock()
 	ld := c.loader
 	sp := c.splitter
 	c.mu.RUnlock()
+
+	if idxCfg.Loader != nil {
+		ld = idxCfg.Loader
+	}
+	if idxCfg.Splitter != nil {
+		sp = idxCfg.Splitter
+	}
 
 	docs, err := ld.Load(ctx, source)
 	if err != nil {
