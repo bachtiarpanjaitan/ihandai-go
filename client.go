@@ -162,6 +162,20 @@ func (c *Client) Embedding() embedding.Embedder { return c.embedding }
 // VectorStore returns the configured vector store provider, or nil.
 func (c *Client) VectorStore() vectordb.VectorSearcher { return c.vectorStore }
 
+// Chat sends a message to the LLM without RAG. Only requires an LLM provider.
+// For multi-turn conversations, use AskConversation with a memory store.
+func (c *Client) Chat(ctx context.Context, query string) (*core.Response, error) {
+	if c.llm == nil {
+		return nil, fmt.Errorf("ihandai: LLM provider not configured")
+	}
+	msgs := []core.Message{{Role: "user", Content: query}}
+	resp, err := c.llm.Chat(ctx, msgs)
+	if err != nil {
+		return nil, &PipelineError{Step: "chat", Err: err}
+	}
+	return resp, nil
+}
+
 // SetRetriever replaces the default retriever. Default wraps VectorStore with top-K.
 func (c *Client) SetRetriever(r retriever.Retriever) {
 	c.mu.Lock()
@@ -279,11 +293,10 @@ func (c *Client) Ask(ctx context.Context, query string, opts ...AskOption) (*cor
 	if c.llm == nil {
 		return nil, fmt.Errorf("ihandai: LLM provider not configured")
 	}
-	if c.embedding == nil {
-		return nil, fmt.Errorf("ihandai: embedding provider not configured")
-	}
-	if c.vectorStore == nil {
-		return nil, fmt.Errorf("ihandai: vector store not configured")
+
+	// Fallback: if no vector store, do simple LLM chat
+	if c.embedding == nil || c.vectorStore == nil {
+		return c.Chat(ctx, query)
 	}
 
 	// Apply query options
