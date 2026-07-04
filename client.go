@@ -10,6 +10,7 @@ import (
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/embedding"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/llm"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/loader"
+	"github.com/bachtiarpanjaitan/ihandai-go/pkg/memory"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/prompt"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/reranker"
 	"github.com/bachtiarpanjaitan/ihandai-go/pkg/retriever"
@@ -22,14 +23,17 @@ type Config struct {
 	Logger *slog.Logger
 
 	// Provider configurations
-	LLMProvider           string
-	LLMOptions            []llm.Option
-	EmbeddingProvider     string
-	EmbeddingOptions      []embedding.Option
+	LLMProvider            string
+	LLMOptions             []llm.Option
+	EmbeddingProvider      string
+	EmbeddingOptions       []embedding.Option
 	IndexEmbeddingProvider string
 	IndexEmbeddingOptions  []embedding.Option
-	VectorStoreProvider   string
-	VectorStoreOptions    []vectordb.Option
+	VectorStoreProvider    string
+	VectorStoreOptions     []vectordb.Option
+
+	// Memory
+	MemoryStore memory.ConversationStore
 }
 
 // Option is a functional option for configuring the Client.
@@ -54,6 +58,9 @@ type Client struct {
 	reranker      reranker.Reranker
 	loader        loader.DocumentLoader
 	splitter      splitter.TextSplitter
+
+	// Memory (protected by mu)
+	memStore memory.ConversationStore
 }
 
 // New creates a new Client with the given options.
@@ -112,6 +119,9 @@ func New(opts ...Option) (*Client, error) {
 	c.splitter = splitter.NewRecursive()
 	c.promptBuilder = prompt.NewSimple()
 
+	// Memory
+	c.memStore = cfg.MemoryStore
+
 	return c, nil
 }
 
@@ -160,6 +170,20 @@ func (c *Client) SetSplitter(s splitter.TextSplitter) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.splitter = s
+}
+
+// SetMemory sets the conversation store for multi-turn conversations.
+func (c *Client) SetMemory(s memory.ConversationStore) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.memStore = s
+}
+
+// Memory returns the configured conversation store, or nil.
+func (c *Client) Memory() memory.ConversationStore {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.memStore
 }
 
 // Config returns a copy of the client's configuration.
@@ -301,6 +325,104 @@ func (c *Client) Ask(ctx context.Context, query string, opts ...AskOption) (*cor
 	}
 
 	return resp, nil
+}
+
+// AskConversation sends a query with conversation history from memory.
+// It loads past messages for the given key, appends them to the prompt,
+// and saves both the query and response back to the store.
+//
+// If no memory store is configured, it falls back to stateless Ask().
+func (c *Client) AskConversation(ctx context.Context, key string, query string, opts ...AskOption) (*core.Response, error) {
+	c.mu.RLock()
+	store := c.memStore
+	c.mu.RUnlock()
+
+	if store == nil {
+		return c.Ask(ctx, query, opts...)
+	}
+
+	// Load conversation history
+	history, err := store.History(ctx, key)
+	if err != nil {
+		return nil, fmt.Errorf("ihandai: load history: %w", err)
+	}
+
+	// Build messages with history
+	history = append(history, core.Message{Role: "user", Content: query})
+
+	// Run the RAG pipeline (skip prompt building since we have history)
+	c.mu.RLock()
+	ret := c.retriever
+	rerank := c.reranker
+	c.mu.RUnlock()
+
+	askCfg := AskConfig{TopK: 5}
+	for _, opt := range opts {
+		opt(&askCfg)
+	}
+	if askCfg.Strategy != nil {
+		ret = askCfg.Strategy
+	}
+	if ret == nil {
+		ret = retriever.NewTopK(c.vectorStore)
+	}
+
+	// Run RAG to get context, then combine with history
+	queryVec, err := c.embedding.Embed(ctx, query)
+	if err != nil {
+		return nil, &PipelineError{Step: "embed", Err: err}
+	}
+
+	retOpts := []retriever.RetrieveOption{retriever.WithTopK(askCfg.TopK)}
+	if askCfg.Filter != nil {
+		retOpts = append(retOpts, retriever.WithFilter(askCfg.Filter))
+	}
+	docs, err := ret.Retrieve(ctx, queryVec, retOpts...)
+	if err != nil {
+		return nil, &PipelineError{Step: "search", Err: err}
+	}
+
+	if rerank != nil && len(docs) > 0 {
+		rawDocs := make([]core.Document, len(docs))
+		for i, d := range docs {
+			rawDocs[i] = d.Document
+		}
+		reranked, err := rerank.Rerank(ctx, query, rawDocs)
+		if err != nil {
+			c.cfg.Logger.Warn("reranking failed, continuing", "error", err)
+		} else {
+			docs = reranked
+		}
+	}
+
+	// Inject context as system message at the front
+	if len(docs) > 0 {
+		ctxMsg := buildContextMessage(docs)
+		history = append([]core.Message{{Role: "system", Content: ctxMsg}}, history...)
+	}
+
+	resp, err := c.llm.Chat(ctx, history)
+	if err != nil {
+		return nil, &PipelineError{Step: "chat", Err: err}
+	}
+
+	// Save query and response to memory
+	if saveErr := store.Append(ctx, key, core.Message{Role: "user", Content: query}); saveErr != nil {
+		c.cfg.Logger.Warn("failed to save query to memory", "error", saveErr)
+	}
+	if saveErr := store.Append(ctx, key, core.Message{Role: "assistant", Content: resp.Content}); saveErr != nil {
+		c.cfg.Logger.Warn("failed to save response to memory", "error", saveErr)
+	}
+
+	return resp, nil
+}
+
+func buildContextMessage(docs []core.ScoredDocument) string {
+	var s string
+	for i, doc := range docs {
+		s += fmt.Sprintf("[%d] %s\n", i+1, doc.Content)
+	}
+	return "Context:\n" + s
 }
 
 // Index runs the document indexing pipeline.
@@ -456,4 +578,9 @@ func WithIndexEmbedding(name string, opts ...embedding.Option) Option {
 // WithVectorStore configures a vector store provider.
 func WithVectorStore(name string, opts ...vectordb.Option) Option {
 	return func(c *Config) { c.VectorStoreProvider = name; c.VectorStoreOptions = opts }
+}
+
+// WithMemory configures a conversation store for multi-turn conversations.
+func WithMemory(store memory.ConversationStore) Option {
+	return func(c *Config) { c.MemoryStore = store }
 }
