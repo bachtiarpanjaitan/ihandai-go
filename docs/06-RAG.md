@@ -23,6 +23,11 @@ VectorInserter.Insert(ctx, docs)    PromptBuilder.Build(ctx, template, ctx)
 Both pipelines run through `Client.Ask()` and `Client.Index()` respectively.
 Every step accepts `ctx context.Context` for cancellation and tracing.
 
+> **Graceful Degradation**: If `Ask()` is called without a configured embedding provider
+> or vector store, it falls back to [`Chat()`](13-CLIENT#chat--simple-llm-without-rag) — a
+> simple LLM call with no retrieval. This lets you start with minimal setup and add RAG
+> later without changing your call sites.
+
 ## Milestones
 
 ### 1. Simple Similarity Search
@@ -151,18 +156,21 @@ type Retriever interface {
 ```go
 resp, err := ai.Ask(ctx, "query")
 if err != nil {
-    // Distinguish pipeline step failures
-    if strings.Contains(err.Error(), "embed") {
-        // Embedding step failed
-    }
-    if strings.Contains(err.Error(), "search") {
-        // Vector search failed
-    }
-    if strings.Contains(err.Error(), "chat") {
-        // LLM call failed — could be rate limit, auth, etc.
-        var rateLimitErr *ihandai.RateLimitError
-        if errors.As(err, &rateLimitErr) {
-            time.Sleep(rateLimitErr.RetryAfter)
+    var pipelineErr *ihandai.PipelineError
+    if errors.As(err, &pipelineErr) {
+        // Step identifies where in the pipeline it failed
+        switch pipelineErr.Step {
+        case "embed":
+            log.Printf("Embedding step failed: %v", pipelineErr.Err)
+        case "search":
+            log.Printf("Vector search failed: %v", pipelineErr.Err)
+        case "chat":
+            log.Printf("LLM call failed: %v", pipelineErr.Err)
+            // Drilled down — could be rate limit, auth, etc.
+            var rateLimitErr *ihandai.RateLimitError
+            if errors.As(pipelineErr.Err, &rateLimitErr) {
+                time.Sleep(rateLimitErr.RetryAfter)
+            }
         }
     }
 }

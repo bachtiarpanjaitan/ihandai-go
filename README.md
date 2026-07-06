@@ -15,8 +15,13 @@ ai, _ := ihandai.New(
 )
 defer ai.Close()
 
+// Simple LLM chat (no RAG required)
+resp, _ := ai.Chat(ctx, "Hello, who are you?")
+
 // RAG query
 resp, _ := ai.Ask(ctx, "What is RAG?", ihandai.WithTopK(5))
+
+// Ask() gracefully falls back to Chat() when no vector store is configured
 
 // Multi-turn conversation
 resp, _ := ai.AskConversation(ctx, "user-123", "Hello!")
@@ -26,19 +31,23 @@ ai.Index(ctx, "./documents/")
 
 // Autonomous agent
 ai.Run(ctx, "Research the latest Go libraries")
+
+// Direct streaming provider access
+streamAI := ai.StreamLLM() // nil if provider doesn't support streaming
 ```
 
 ## Features
 
 | Feature | Package | Description |
 |---------|---------|-------------|
+| **Simple Chat** | root | `Chat()` — LLM call without RAG, no vector store needed |
 | **RAG Pipeline** | root | Load → Split → Embed → Search → Rerank → Chat |
 | **Retrieval Strategies** | `pkg/retriever` | TopK, MMR, MultiQuery, Hybrid |
 | **Agents** | `pkg/agent` | ReAct pattern, tool calling, retry |
 | **Memory** | `pkg/memory` | Conversation store, window management |
 | **Workflows** | `pkg/workflow` | DAG-based parallel execution, conditional branching |
 | **MCP Client** | `pkg/mcp` | JSON-RPC client, filesystem server |
-| **Streaming** | root | `AskStream()` with channel-based response |
+| **Streaming** | root | `AskStream()` + `StreamLLM()` accessor for channel-based response |
 | **Observability** | `pkg/telemetry` | Tracing, rate limiter, circuit breaker |
 
 ## Packages (18 packages, 100% test pass, race detector clean)

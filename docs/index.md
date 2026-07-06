@@ -33,13 +33,14 @@ go get github.com/bachtiarpanjaitan/ihandai-go
 
 | Feature | Description |
 |---------|-------------|
+| 💬 **Simple Chat** | `Chat()` — LLM call without RAG, no vector store required |
 | 🔍 **RAG Pipeline** | Load → Split → Embed → Search → Rerank → Chat |
 | 🎯 **Retrieval Strategies** | TopK, MMR (diversity), MultiQuery (expansion) |
 | 🤖 **Agents** | ReAct agent loop with tool calling, retry, reflection |
 | 🧠 **Memory** | Multi-turn conversations with token-aware window |
 | ⚙️ **Workflows** | DAG-based parallel execution, conditional branching |
 | 🔌 **MCP** | Model Context Protocol client + filesystem server |
-| 📡 **Streaming** | Real-time token streaming via channels |
+| 📡 **Streaming** | `AskStream()` + `StreamLLM()` accessor for real-time tokens |
 | 🛡️ **Production** | Rate limiter, circuit breaker, tracing |
 
 ## Quick Links

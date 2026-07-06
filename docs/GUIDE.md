@@ -55,6 +55,36 @@ func main() {
 
 ---
 
+## Simple Chat (No RAG)
+
+`Chat()` sends a message directly to the LLM without any RAG pipeline.
+Only an LLM provider is required — no embedding or vector store needed.
+
+```go
+ai, err := ihandai.New(
+    ihandai.WithLLM("ollama",
+        llm.WithModel("llama3"),
+        llm.WithBaseURL("http://localhost:11434"),
+    ),
+)
+if err != nil {
+    log.Fatal(err)
+}
+defer ai.Close()
+
+resp, err := ai.Chat(ctx, "What is the capital of France?")
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(resp.Content)
+// → "The capital of France is Paris."
+```
+
+You can also use `Ask()` without a vector store — it falls back to `Chat()` automatically,
+so you can start with simple LLM calls and add RAG later without changing call sites.
+
+---
+
 ## Configuration
 
 ### Functional Options Pattern
@@ -137,7 +167,7 @@ err := ai.Index(ctx, "./docs/",
 ### Querying
 
 ```go
-// Basic query
+// Basic query (falls back to Chat() if no vector store is configured)
 resp, err := ai.Ask(ctx, "What does the report say about revenue?")
 
 // With options
@@ -175,8 +205,10 @@ resp, err := ai.Ask(ctx, "complex question",
 
 ## Streaming
 
+### Built-in RAG Streaming
+
 ```go
-// Stream tokens as they are generated
+// Stream tokens as they are generated (requires full RAG setup)
 ch, err := ai.AskStream(ctx, "Tell me a story")
 if err != nil {
     log.Fatal(err)
@@ -191,6 +223,28 @@ for chunk := range ch {
 fmt.Println()
 ```
 
+### Direct Streaming Access
+
+For providers that support streaming, access the underlying `StreamCompleter` directly:
+
+```go
+if streamer := ai.StreamLLM(); streamer != nil {
+    ch, err := streamer.ChatStream(ctx, []core.Message{
+        {Role: "user", Content: "Tell me a story"},
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    for chunk := range ch {
+        fmt.Print(chunk.Content)
+    }
+    fmt.Println()
+}
+```
+
+`StreamLLM()` returns `nil` if the configured LLM provider does not implement
+the `StreamCompleter` interface.
+
 ---
 
 ## Conversations with Memory
@@ -198,7 +252,7 @@ fmt.Println()
 ```go
 import "github.com/bachtiarpanjaitan/ihandai-go/pkg/memory"
 
-// Setup
+// Setup — only LLM + memory needed; no embedding or vector store required
 store := memory.NewInMemoryStore()
 ai, _ := ihandai.New(
     ihandai.WithLLM("ollama", llm.WithModel("llama3")),
@@ -206,10 +260,13 @@ ai, _ := ihandai.New(
 )
 defer ai.Close()
 
-// Multi-turn conversation
+// Multi-turn conversation (gracefully skips retrieval if RAG is not configured)
 resp1, _ := ai.AskConversation(ctx, "user-123", "My name is Alice.")
 resp2, _ := ai.AskConversation(ctx, "user-123", "What is my name?")
 // → "Your name is Alice."
+
+// If you add RAG later (embedding + vector store), the same calls
+// automatically enrich responses with retrieved context — no code changes needed.
 
 // Conversation history
 history, _ := store.History(ctx, "user-123")
