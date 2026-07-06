@@ -156,6 +156,10 @@ func (c *Client) Close() error {
 // LLM returns the configured LLM provider, or nil.
 func (c *Client) LLM() llm.ChatCompleter { return c.llm }
 
+// StreamLLM returns the configured streaming LLM provider, or nil.
+// Returns nil if the LLM provider does not support streaming.
+func (c *Client) StreamLLM() llm.StreamCompleter { return c.streamLLM }
+
 // Embedding returns the configured embedding provider, or nil.
 func (c *Client) Embedding() embedding.Embedder { return c.embedding }
 
