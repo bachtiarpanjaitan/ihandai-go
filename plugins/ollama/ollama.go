@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -74,6 +76,43 @@ func applyOptions(opts []Option) Config {
 		opt(&cfg)
 	}
 	return cfg
+}
+
+// buildURL joins a base URL with an endpoint path, normalizing common Ollama
+// path segments that users may accidentally include in their base_url setting.
+//
+// Examples for baseURL "http://localhost:11434/api" + endpoint "/api/chat":
+//
+//	→ "http://localhost:11434/api/chat" (not "http://localhost:11434/api/api/chat")
+//
+// Supported baseURL forms (all produce the correct result):
+//
+//	http://localhost:11434             → http://localhost:11434/api/chat
+//	http://localhost:11434/            → http://localhost:11434/api/chat
+//	http://localhost:11434/api         → http://localhost:11434/api/chat
+//	http://localhost:11434/api/chat    → http://localhost:11434/api/chat
+func buildURL(baseURL, endpoint string) string {
+	baseURL = strings.TrimSpace(baseURL)
+
+	u, err := url.Parse(baseURL)
+	if err != nil || u.Host == "" {
+		// Fallback for malformed URLs: clean slashes and join
+		return strings.TrimRight(baseURL, "/") + endpoint
+	}
+
+	// Strip known Ollama API path suffixes so users can set base_url to any
+	// valid Ollama endpoint without worrying about the exact format.
+	// Longest suffixes first to avoid partial matches.
+	u.Path = strings.TrimSuffix(u.Path, "/api/chat")
+	u.Path = strings.TrimSuffix(u.Path, "/api/embeddings")
+	u.Path = strings.TrimSuffix(u.Path, "/api")
+	u.Path = strings.TrimSuffix(u.Path, "/")
+
+	// Build the final path
+	u.Path += endpoint
+	u.RawPath = ""
+
+	return u.String()
 }
 
 // chatRequest is the JSON body for POST /api/chat.

@@ -28,7 +28,7 @@ func (e *Embedder) Embed(ctx context.Context, text string) ([]float64, error) {
 	}
 
 	var result embedResponse
-	url := e.cfg.BaseURL + "/api/embeddings"
+	url := buildURL(e.cfg.BaseURL, "/api/embeddings")
 	if err := doRequest(ctx, e.cfg.HTTPClient, url, reqBody, &result); err != nil {
 		return nil, fmt.Errorf("ollama: embed: %w", err)
 	}

@@ -35,7 +35,7 @@ func (c *ChatCompleter) Chat(ctx context.Context, messages []core.Message) (*cor
 	}
 
 	var result chatResponse
-	url := c.cfg.BaseURL + "/api/chat"
+	url := buildURL(c.cfg.BaseURL, "/api/chat")
 	if err := doRequest(ctx, c.cfg.HTTPClient, url, reqBody, &result); err != nil {
 		return nil, fmt.Errorf("ollama: chat: %w", err)
 	}
