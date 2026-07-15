@@ -138,10 +138,10 @@ type chatResponse struct {
 // chatStreamChunk is a single chunk from a streaming POST /api/chat response.
 // Each line is a self-contained JSON object with delta content.
 type chatStreamChunk struct {
-	Model     string      `json:"model"`
-	Message   chatMessage `json:"message"`
-	Done      bool        `json:"done"`
-	DoneReason string     `json:"done_reason,omitempty"`
+	Model      string      `json:"model"`
+	Message    chatMessage `json:"message"`
+	Done       bool        `json:"done"`
+	DoneReason string      `json:"done_reason,omitempty"`
 }
 
 // embedRequest is the JSON body for POST /api/embeddings.
